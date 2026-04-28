@@ -11,10 +11,19 @@ use crate::events::AppEvent;
 
 impl App {
     pub(crate) fn handle_internal_event(&mut self, ev: AppEvent) {
-        if let AppEvent::ClipboardWrite { content } = ev {
-            crate::selection::write_osc52_bytes(&content);
-            return;
-        }
+        let ev = match ev {
+            AppEvent::ClipboardWrite { content } => {
+                crate::selection::write_osc52_bytes(&content);
+                return;
+            }
+            AppEvent::OpenUrl { url } => {
+                if let Err(err) = crate::platform::open_url(&url) {
+                    tracing::warn!(%url, err = %err, "failed to open URL");
+                }
+                return;
+            }
+            ev => ev,
+        };
 
         let overlay_state = if let AppEvent::PaneDied { pane_id } = &ev {
             self.overlay_panes.remove(pane_id)

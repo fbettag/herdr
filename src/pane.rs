@@ -688,6 +688,10 @@ impl PaneRuntime {
         self.terminal.visible_text()
     }
 
+    pub fn hyperlink_uri_at_viewport_cell(&self, row: u16, col: u16) -> Option<String> {
+        self.terminal.hyperlink_uri_at_viewport_cell(row, col)
+    }
+
     pub fn recent_text(&self, lines: usize) -> String {
         self.terminal.recent_text(lines)
     }

@@ -110,6 +110,23 @@ GHOSTTY_API GhosttyResult ghostty_grid_ref_graphemes(const GhosttyGridRef *ref,
                                          size_t *out_len);
 
 /**
+ * Get the OSC 8 hyperlink URI for the cell at the grid reference's position.
+ *
+ * The returned string is borrowed from the terminal. It is valid only until
+ * the next terminal update, same as the grid reference itself. If the cell has
+ * no hyperlink, this returns GHOSTTY_SUCCESS with out_uri->len set to 0.
+ *
+ * @param ref Pointer to the grid reference
+ * @param[out] out_uri On success, set to the cell's hyperlink URI
+ * @return GHOSTTY_SUCCESS on success, GHOSTTY_INVALID_VALUE if the ref's
+ *         node is NULL or out_uri is NULL
+ *
+ * @ingroup grid_ref
+ */
+GHOSTTY_API GhosttyResult ghostty_grid_ref_hyperlink_uri(const GhosttyGridRef *ref,
+                                             GhosttyString *out_uri);
+
+/**
  * Get the style of the cell at the grid reference's position.
  *
  * @param ref Pointer to the grid reference

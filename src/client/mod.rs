@@ -441,6 +441,11 @@ async fn run_client_loop(
                 ServerMessage::ReloadSoundConfig => {
                     reload_local_sound_config(&mut state.sound_config);
                 }
+                ServerMessage::OpenUrl { url } => {
+                    if let Err(err) = crate::platform::open_url(&url) {
+                        tracing::warn!(%url, err = %err, "failed to open URL");
+                    }
+                }
                 ServerMessage::Welcome { .. } => {
                     debug!("received unexpected Welcome in main loop");
                 }

@@ -528,6 +528,7 @@ impl AppState {
                 }
                 Vec::new()
             }
+            AppEvent::OpenUrl { .. } | AppEvent::ClipboardWrite { .. } => Vec::new(),
             AppEvent::StateChanged {
                 pane_id,
                 agent,
@@ -561,9 +562,6 @@ impl AppState {
                 .update_pane_state(pane_id, |pane| pane.release_agent(&source, &agent_label))
                 .into_iter()
                 .collect(),
-            // Intercepted in App::handle_internal_event before reaching this
-            // dispatch; never touches AppState.
-            AppEvent::ClipboardWrite { .. } => Vec::new(),
         }
     }
 

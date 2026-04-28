@@ -122,6 +122,10 @@ impl PaneTerminal {
         self.ghostty.visible_text()
     }
 
+    pub fn hyperlink_uri_at_viewport_cell(&self, row: u16, col: u16) -> Option<String> {
+        self.ghostty.hyperlink_uri_at_viewport_cell(row, col)
+    }
+
     pub fn detection_text(&self) -> String {
         self.ghostty.detection_text()
     }
@@ -513,6 +517,18 @@ impl GhosttyPaneTerminal {
             .ok()
             .and_then(|mut core| ghostty_visible_text(&mut core).ok())
             .unwrap_or_default()
+    }
+
+    pub fn hyperlink_uri_at_viewport_cell(&self, row: u16, col: u16) -> Option<String> {
+        self.core
+            .lock()
+            .ok()
+            .and_then(|core| {
+                core.terminal
+                    .viewport_hyperlink_uri(col, u32::from(row))
+                    .ok()
+            })
+            .flatten()
     }
 
     pub fn detection_text(&self) -> String {

@@ -30,6 +30,7 @@ mod input;
 mod integration;
 mod ipc;
 mod layout;
+mod links;
 mod logging;
 mod pane;
 mod persist;

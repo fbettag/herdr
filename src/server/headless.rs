@@ -829,6 +829,13 @@ impl HeadlessServer {
                 // ClipboardWrite doesn't change visual state — no render needed.
                 false
             }
+            AppEvent::OpenUrl { url } => {
+                // URL opens are client-local side effects, like clipboard writes.
+                if let Some(client_id) = self.foreground_client_id {
+                    self.send_to_client(client_id, ServerMessage::OpenUrl { url: url.clone() });
+                }
+                false
+            }
             AppEvent::StateChanged {
                 pane_id,
                 agent,
@@ -2708,6 +2715,58 @@ mod tests {
                 .recv_timeout(Duration::from_millis(50))
                 .is_err(),
             "background client should not receive client-local notifications"
+        );
+    }
+
+    #[test]
+    fn open_url_targets_foreground_client_only() {
+        let mut server = test_headless_server();
+        let (background_tx, background_rx) = std::sync::mpsc::channel();
+        let (foreground_tx, foreground_rx) = std::sync::mpsc::channel();
+
+        server.clients.insert(
+            1,
+            ClientConnection {
+                terminal_size: (120, 40),
+                host_terminal_theme: crate::terminal_theme::TerminalTheme::default(),
+                outer_terminal_focus: None,
+                last_activity: 1,
+                last_frame: None,
+                writer: Some(background_tx),
+            },
+        );
+        server.clients.insert(
+            2,
+            ClientConnection {
+                terminal_size: (80, 24),
+                host_terminal_theme: crate::terminal_theme::TerminalTheme::default(),
+                outer_terminal_focus: None,
+                last_activity: 2,
+                last_frame: None,
+                writer: Some(foreground_tx),
+            },
+        );
+        server.foreground_client_id = Some(2);
+        server.sync_foreground_client_state();
+
+        let changed = server.handle_internal_event_with_forwarding(AppEvent::OpenUrl {
+            url: "https://example.com".to_owned(),
+        });
+
+        assert!(!changed);
+        match read_server_message(
+            foreground_rx
+                .recv_timeout(Duration::from_millis(100))
+                .expect("foreground open-url message"),
+        ) {
+            ServerMessage::OpenUrl { url } => assert_eq!(url, "https://example.com"),
+            other => panic!("expected open-url message, got {other:?}"),
+        }
+        assert!(
+            background_rx
+                .recv_timeout(Duration::from_millis(50))
+                .is_err(),
+            "background client should not receive URL open requests"
         );
     }
 

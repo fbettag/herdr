@@ -731,6 +731,13 @@ unsafe extern "C" {
     ) -> GhosttyResult;
 }
 unsafe extern "C" {
+    #[doc = " Get the OSC 8 hyperlink URI for the cell at the grid reference's position.\n\n The returned string is borrowed from the terminal. It is valid only until\n the next terminal update, same as the grid reference itself. If the cell has\n no hyperlink, this returns GHOSTTY_SUCCESS with out_uri->len set to 0.\n\n @param ref Pointer to the grid reference\n @param[out] out_uri On success, set to the cell's hyperlink URI\n @return GHOSTTY_SUCCESS on success, GHOSTTY_INVALID_VALUE if the ref's\n         node is NULL or out_uri is NULL\n\n @ingroup grid_ref"]
+    pub fn ghostty_grid_ref_hyperlink_uri(
+        ref_: *const GhosttyGridRef,
+        out_uri: *mut GhosttyString,
+    ) -> GhosttyResult;
+}
+unsafe extern "C" {
     #[doc = " Get the style of the cell at the grid reference's position.\n\n @param ref Pointer to the grid reference\n @param[out] out_style On success, set to the cell's style (may be NULL)\n @return GHOSTTY_SUCCESS on success, GHOSTTY_INVALID_VALUE if the ref's\n         node is NULL\n\n @ingroup grid_ref"]
     pub fn ghostty_grid_ref_style(
         ref_: *const GhosttyGridRef,

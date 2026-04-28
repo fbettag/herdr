@@ -1,5 +1,5 @@
 use std::{
-    io::Write,
+    io::{self, Write},
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -153,6 +153,16 @@ pub fn write_clipboard(bytes: &[u8]) -> bool {
         }
     }
     false
+}
+
+pub fn open_url(url: &str) -> io::Result<()> {
+    Command::new("xdg-open")
+        .arg(url)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(|_| ())
 }
 
 fn clipboard_commands() -> Vec<ClipboardCommand> {

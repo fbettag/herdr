@@ -278,6 +278,7 @@ impl App {
             request_reload_config: false,
             request_client_sound_config_reload: false,
             request_clipboard_write: None,
+            request_open_url: None,
             creating_new_tab: false,
             requested_new_tab_name: None,
             request_complete_onboarding: false,

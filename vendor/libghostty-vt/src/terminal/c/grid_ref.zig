@@ -89,6 +89,23 @@ pub fn grid_ref_graphemes(
     return .success;
 }
 
+pub fn grid_ref_hyperlink_uri(
+    ref: *const CGridRef,
+    out: ?*lib.String,
+) callconv(lib.calling_conv) Result {
+    const p = ref.toPin() orelse return .invalid_value;
+    const out_uri = out orelse return .invalid_value;
+    const cell = p.rowAndCell().cell;
+    const link_id = p.node.data.lookupHyperlink(cell) orelse {
+        out_uri.* = .{ .ptr = "".ptr, .len = 0 };
+        return .success;
+    };
+    const entry = p.node.data.hyperlink_set.get(p.node.data.memory, link_id);
+    const uri = entry.uri.slice(p.node.data.memory);
+    out_uri.* = .{ .ptr = uri.ptr, .len = uri.len };
+    return .success;
+}
+
 pub fn grid_ref_style(
     ref: *const CGridRef,
     out: ?*style_c.Style,
@@ -153,4 +170,15 @@ test "grid_ref_style null node" {
 test "grid_ref_style null out" {
     const ref = CGridRef{};
     try testing.expectEqual(Result.invalid_value, grid_ref_style(&ref, null));
+}
+
+test "grid_ref_hyperlink_uri null node" {
+    const ref = CGridRef{};
+    var out: lib.String = undefined;
+    try testing.expectEqual(Result.invalid_value, grid_ref_hyperlink_uri(&ref, &out));
+}
+
+test "grid_ref_hyperlink_uri null out" {
+    const ref = CGridRef{};
+    try testing.expectEqual(Result.invalid_value, grid_ref_hyperlink_uri(&ref, null));
 }

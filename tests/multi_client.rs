@@ -15,7 +15,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use support::{
     cleanup_test_base, register_runtime_dir, register_spawned_herdr_pid,
-    unregister_spawned_herdr_pid,
+    unregister_spawned_herdr_pid, EXPECTED_PROTOCOL_VERSION,
 };
 
 fn unique_test_dir() -> PathBuf {
@@ -542,7 +542,8 @@ fn client_handshake(
 
 fn connect_raw_client(client_socket: &Path, cols: u16, rows: u16) -> UnixStream {
     let mut stream = UnixStream::connect(client_socket).expect("should connect to client socket");
-    client_handshake(&mut stream, 2, cols, rows).expect("handshake should succeed");
+    client_handshake(&mut stream, EXPECTED_PROTOCOL_VERSION, cols, rows)
+        .expect("handshake should succeed");
     stream
 }
 

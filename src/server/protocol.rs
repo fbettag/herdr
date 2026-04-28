@@ -212,6 +212,12 @@ pub enum ServerMessage {
 
     /// Client-local sound config changed on disk; refresh it without reconnecting.
     ReloadSoundConfig,
+
+    /// Request that the foreground client opens a URL locally.
+    OpenUrl {
+        /// URL to open with the platform opener.
+        url: String,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -650,6 +656,17 @@ mod tests {
         assert_eq!(msg, decoded);
     }
 
+    #[test]
+    fn server_open_url_roundtrip() {
+        let msg = ServerMessage::OpenUrl {
+            url: "https://example.com".to_owned(),
+        };
+        let encoded = bincode::serde::encode_to_vec(&msg, bincode::config::standard()).unwrap();
+        let (decoded, _): (ServerMessage, _) =
+            bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
+        assert_eq!(msg, decoded);
+    }
+
     // ---- Framing ----
 
     #[test]
@@ -840,7 +857,7 @@ mod tests {
 
     #[test]
     fn version_older_client_rejected() {
-        let result = check_client_version(PROTOCOL_VERSION - 1);
+        let result = check_client_version(PROTOCOL_VERSION.saturating_sub(1));
         assert!(matches!(result, VersionCheck::Incompatible(_)));
         if let VersionCheck::Incompatible(msg) = result {
             assert!(msg.contains("older"), "error should mention older version");

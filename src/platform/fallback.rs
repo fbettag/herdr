@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::{io, io::ErrorKind};
 
 use super::{ForegroundJob, Signal};
 
@@ -28,4 +29,12 @@ pub fn process_exists(_pid: u32) -> bool {
 /// Unsupported platform stub.
 pub fn write_clipboard(_bytes: &[u8]) -> bool {
     false
+}
+
+/// Unsupported platform stub.
+pub fn open_url(_url: &str) -> io::Result<()> {
+    Err(io::Error::new(
+        ErrorKind::Unsupported,
+        "opening URLs is not supported on this platform",
+    ))
 }

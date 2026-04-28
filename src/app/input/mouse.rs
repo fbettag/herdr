@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::{Direction, Rect};
 use tracing::warn;
 
@@ -324,6 +324,11 @@ impl AppState {
                     self.focus_pane(info.id);
                     if self.mode != Mode::Terminal {
                         self.mode = Mode::Terminal;
+                    }
+
+                    if self.request_open_link_at_mouse(&info, mouse) {
+                        self.selection = None;
+                        return None;
                     }
 
                     if self.forward_pane_mouse_button(&info, mouse) {
@@ -972,6 +977,31 @@ impl AppState {
         true
     }
 
+    fn request_open_link_at_mouse(&mut self, info: &PaneInfo, mouse: MouseEvent) -> bool {
+        if !is_link_open_mouse(mouse) {
+            return false;
+        }
+
+        let Some(ws) = self.active.and_then(|i| self.workspaces.get(i)) else {
+            return false;
+        };
+        let Some(rt) = ws.runtime(info.id) else {
+            return false;
+        };
+
+        let row = mouse.row.saturating_sub(info.inner_rect.y);
+        let col = mouse.column.saturating_sub(info.inner_rect.x);
+        let Some(url) = rt
+            .hyperlink_uri_at_viewport_cell(row, col)
+            .or_else(|| crate::links::url_at_cell(&rt.visible_text(), row, col))
+        else {
+            return false;
+        };
+
+        self.request_open_url = Some(url);
+        true
+    }
+
     pub(super) fn forward_pane_wheel(&self, info: &PaneInfo, mouse: MouseEvent) -> bool {
         let Some(ws) = self.active.and_then(|i| self.workspaces.get(i)) else {
             return false;
@@ -1079,6 +1109,15 @@ impl AppState {
     }
 }
 
+fn is_link_open_mouse(mouse: MouseEvent) -> bool {
+    if !matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+        return false;
+    }
+    mouse.modifiers.intersects(
+        KeyModifiers::SUPER | KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::META,
+    )
+}
+
 #[cfg(test)]
 pub(super) fn wheel_routing(input_state: crate::pane::InputState) -> WheelRouting {
     if input_state.mouse_protocol_mode.reporting_enabled() {
@@ -1092,7 +1131,9 @@ pub(super) fn wheel_routing(input_state: crate::pane::InputState) -> WheelRoutin
 
 #[cfg(test)]
 mod tests {
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
+    use crossterm::event::{
+        KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use ratatui::layout::{Direction, Rect};
 
     use super::super::{
@@ -1101,6 +1142,8 @@ mod tests {
     use super::*;
     use crate::{
         app::state::{ContextMenuKind, ContextMenuState, MenuListState, Mode},
+        events::AppEvent,
+        pane::PaneRuntime,
         workspace::Workspace,
     };
 
@@ -1351,6 +1394,93 @@ mod tests {
 
         let after = capture_snapshot(&app.state);
         assert_ne!(root_layout_ratio(&before), root_layout_ratio(&after));
+    }
+
+    #[tokio::test]
+    async fn modified_left_click_on_visible_url_queues_open_url_event() {
+        let mut app = app_for_mouse_test();
+        let mut workspace = Workspace::test_new("test");
+        let focused = workspace.focused_pane_id().unwrap();
+        let runtime =
+            PaneRuntime::test_with_screen_bytes(80, 24, b"open https://example.com/docs\r\n");
+        workspace.tabs[0].runtimes.insert(focused, runtime);
+        app.state.workspaces = vec![workspace];
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        app.state.mode = Mode::Terminal;
+        crate::ui::compute_view(&mut app.state, Rect::new(0, 0, 106, 20));
+
+        let info = app.state.view.pane_infos[0].clone();
+        app.handle_mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: info.inner_rect.x + 8,
+            row: info.inner_rect.y,
+            modifiers: KeyModifiers::CONTROL,
+        });
+
+        match app.event_rx.try_recv().expect("open-url event") {
+            AppEvent::OpenUrl { url } => assert_eq!(url, "https://example.com/docs"),
+            other => panic!("unexpected event: {other:?}"),
+        }
+        assert!(app.state.selection.is_none());
+    }
+
+    #[tokio::test]
+    async fn modified_left_click_on_osc8_label_queues_hidden_url_event() {
+        let mut app = app_for_mouse_test();
+        let mut workspace = Workspace::test_new("test");
+        let focused = workspace.focused_pane_id().unwrap();
+        let runtime = PaneRuntime::test_with_screen_bytes(
+            80,
+            24,
+            b"open \x1b]8;;https://example.com/hidden\x07label\x1b]8;;\x07\r\n",
+        );
+        workspace.tabs[0].runtimes.insert(focused, runtime);
+        app.state.workspaces = vec![workspace];
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        app.state.mode = Mode::Terminal;
+        crate::ui::compute_view(&mut app.state, Rect::new(0, 0, 106, 20));
+
+        let info = app.state.view.pane_infos[0].clone();
+        app.handle_mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: info.inner_rect.x + 6,
+            row: info.inner_rect.y,
+            modifiers: KeyModifiers::CONTROL,
+        });
+
+        match app.event_rx.try_recv().expect("open-url event") {
+            AppEvent::OpenUrl { url } => assert_eq!(url, "https://example.com/hidden"),
+            other => panic!("unexpected event: {other:?}"),
+        }
+        assert!(app.state.selection.is_none());
+    }
+
+    #[tokio::test]
+    async fn unmodified_left_click_on_visible_url_starts_selection() {
+        let mut app = app_for_mouse_test();
+        let mut workspace = Workspace::test_new("test");
+        let focused = workspace.focused_pane_id().unwrap();
+        let runtime =
+            PaneRuntime::test_with_screen_bytes(80, 24, b"open https://example.com/docs\r\n");
+        workspace.tabs[0].runtimes.insert(focused, runtime);
+        app.state.workspaces = vec![workspace];
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        app.state.mode = Mode::Terminal;
+        crate::ui::compute_view(&mut app.state, Rect::new(0, 0, 106, 20));
+
+        let info = app.state.view.pane_infos[0].clone();
+        app.handle_mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: info.inner_rect.x + 8,
+            row: info.inner_rect.y,
+            modifiers: KeyModifiers::empty(),
+        });
+
+        assert!(app.event_rx.try_recv().is_err());
+        assert!(app.state.selection.is_some());
     }
 
     #[test]

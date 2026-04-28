@@ -42,4 +42,6 @@ pub enum AppEvent {
     /// A pane child emitted a valid OSC 52 clipboard write. The main loop
     /// re-emits it through herdr's own clipboard writer.
     ClipboardWrite { content: Vec<u8> },
+    /// User interaction requested opening a URL outside herdr.
+    OpenUrl { url: String },
 }

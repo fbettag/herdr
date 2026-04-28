@@ -165,6 +165,16 @@ impl App {
                 tracing::warn!("failed to queue clipboard write event");
             }
         }
+
+        if let Some(url) = self.state.request_open_url.take() {
+            if self
+                .event_tx
+                .try_send(crate::events::AppEvent::OpenUrl { url })
+                .is_err()
+            {
+                tracing::warn!("failed to queue open-url event");
+            }
+        }
     }
 }
 

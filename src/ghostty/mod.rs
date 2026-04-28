@@ -455,6 +455,28 @@ impl Terminal {
         Ok(buffer)
     }
 
+    pub fn viewport_hyperlink_uri(&self, x: u16, y: u32) -> Result<Option<String>, Error> {
+        let point = ghostty_viewport_point(x, y);
+        let mut grid_ref = ffi::GhosttyGridRef {
+            size: mem::size_of::<ffi::GhosttyGridRef>(),
+            ..Default::default()
+        };
+        unsafe {
+            ffi::ghostty_terminal_grid_ref(self.raw, point, &mut grid_ref).into_result()?;
+        }
+
+        let mut uri = ffi::GhosttyString::default();
+        unsafe {
+            ffi::ghostty_grid_ref_hyperlink_uri(&grid_ref, &mut uri).into_result()?;
+        }
+        if uri.len == 0 {
+            return Ok(None);
+        }
+
+        let bytes = unsafe { slice::from_raw_parts(uri.ptr, uri.len) };
+        Ok(Some(String::from_utf8_lossy(bytes).into_owned()))
+    }
+
     pub fn read_text_viewport(
         &self,
         start: (u16, u32),
@@ -1228,6 +1250,18 @@ mod tests {
         let output = responses.lock().unwrap().clone();
         assert!(!output.is_empty());
         assert!(String::from_utf8_lossy(&output).contains("R"));
+    }
+
+    #[test]
+    fn viewport_hyperlink_uri_reads_osc8_metadata() {
+        let mut terminal = Terminal::new(20, 5, 0).unwrap();
+        terminal.write(b"\x1b]8;;https://example.com/hidden\x07label\x1b]8;;\x07");
+
+        assert_eq!(
+            terminal.viewport_hyperlink_uri(2, 0).unwrap().as_deref(),
+            Some("https://example.com/hidden")
+        );
+        assert_eq!(terminal.viewport_hyperlink_uri(10, 0).unwrap(), None);
     }
 
     #[test]
